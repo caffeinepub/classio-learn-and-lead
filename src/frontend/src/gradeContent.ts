@@ -937,12 +937,44 @@ export const GRADE_CONTENT: GradeContent[] = Array.from(
       modules: buildModules(grade),
       videos: [
         {
-          title: `Classroom Management Strategies – Grade ${grade}`,
-          url: "https://www.youtube.com/embed/oHg5SJYRHA0",
+          title: "E-Classroom Management",
+          url: "https://www.youtube.com/embed/YWkBCUmfIY4",
         },
         {
-          title: `Child Psychology & Engagement – Grade ${grade}`,
-          url: "https://www.youtube.com/embed/oHg5SJYRHA0",
+          title: "How to Conduct Activities",
+          url: "https://www.youtube.com/embed/ucZl6vQ_8Uo",
+        },
+        {
+          title: "Child Behaviour & Psychology",
+          url: "https://www.youtube.com/embed/mmFKOdHolBo",
+        },
+        {
+          title: "Managing Classroom Environment",
+          url: "https://www.youtube.com/embed/r0J9fBOJHI4",
+        },
+        {
+          title: "Building Positive Relationships",
+          url: "https://www.youtube.com/embed/PHzBgWAHLjk",
+        },
+        {
+          title: "Inclusive Education Practices",
+          url: "https://www.youtube.com/embed/IiQ4_Tk3E6U",
+        },
+        {
+          title: "Student Engagement Strategies",
+          url: "https://www.youtube.com/embed/Ov7QkMp7sBQ",
+        },
+        {
+          title: "Effective Communication",
+          url: "https://www.youtube.com/embed/HAnw168huqA",
+        },
+        {
+          title: "Assessment for Learning",
+          url: "https://www.youtube.com/embed/tKSHSG4nFj0",
+        },
+        {
+          title: "Professional Reflection & Growth",
+          url: "https://www.youtube.com/embed/Xl2jHFKaj7M",
         },
       ],
       quiz: [

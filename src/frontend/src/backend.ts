@@ -38,9 +38,10 @@ export class ExternalBlob {
 
 export interface backendInterface {
   _initializeAccessControlWithSecret(secret: string): Promise<undefined>;
-  login(username: string): Promise<unknown>;
-  createSchoolAdmin(creatorId: string, name: string, email: string, username: string, schoolName: string): Promise<unknown>;
-  createTeacher(creatorId: string, name: string, email: string, username: string, gradeAssigned: bigint): Promise<unknown>;
+  login(username: string, password: string): Promise<unknown>;
+  changePassword(userId: string, oldPassword: string, newPassword: string): Promise<unknown>;
+  createSchoolAdmin(creatorId: string, name: string, email: string, username: string, password: string, schoolName: string): Promise<unknown>;
+  createTeacher(creatorId: string, name: string, email: string, username: string, password: string, gradeAssigned: bigint): Promise<unknown>;
   markSectionComplete(userId: string, gradeNumber: bigint, sectionId: string): Promise<unknown>;
   submitQuiz(userId: string, gradeNumber: bigint, score: bigint, totalQuestions: bigint): Promise<unknown>;
   getMyReport(userId: string): Promise<unknown>;
@@ -62,16 +63,20 @@ export class Backend implements backendInterface {
     try { return await this.actor._initializeAccessControlWithSecret(secret); }
     catch (e) { if (this.processError) this.processError(e); throw e; }
   }
-  async login(username: string) {
-    try { return await this.actor.login(username); }
+  async login(username: string, password: string) {
+    try { return await this.actor.login(username, password); }
     catch (e) { if (this.processError) this.processError(e); throw e; }
   }
-  async createSchoolAdmin(creatorId: string, name: string, email: string, username: string, schoolName: string) {
-    try { return await this.actor.createSchoolAdmin(creatorId, name, email, username, schoolName); }
+  async changePassword(userId: string, oldPassword: string, newPassword: string) {
+    try { return await this.actor.changePassword(userId, oldPassword, newPassword); }
     catch (e) { if (this.processError) this.processError(e); throw e; }
   }
-  async createTeacher(creatorId: string, name: string, email: string, username: string, gradeAssigned: bigint) {
-    try { return await this.actor.createTeacher(creatorId, name, email, username, gradeAssigned); }
+  async createSchoolAdmin(creatorId: string, name: string, email: string, username: string, password: string, schoolName: string) {
+    try { return await this.actor.createSchoolAdmin(creatorId, name, email, username, password, schoolName); }
+    catch (e) { if (this.processError) this.processError(e); throw e; }
+  }
+  async createTeacher(creatorId: string, name: string, email: string, username: string, password: string, gradeAssigned: bigint) {
+    try { return await this.actor.createTeacher(creatorId, name, email, username, password, gradeAssigned); }
     catch (e) { if (this.processError) this.processError(e); throw e; }
   }
   async markSectionComplete(userId: string, gradeNumber: bigint, sectionId: string) {

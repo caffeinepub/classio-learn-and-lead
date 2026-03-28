@@ -53,9 +53,7 @@ actor {
   };
 
   // ---- Stable storage ----
-  // usersEntries: keeps old name + old type to receive existing deployed data during upgrade
   stable var usersEntries : [(Text, UserV1)] = [];
-  // usersEntriesV2: new stable storage with password field
   stable var usersEntriesV2 : [(Text, User)] = [];
   stable var moduleProgressEntries : [(Text, [ModuleProgress])] = [];
   stable var quizResultsEntries : [(Text, [QuizResult])] = [];
@@ -66,7 +64,7 @@ actor {
   transient var moduleProgress = HashMap.fromIter<Text, [ModuleProgress]>(moduleProgressEntries.vals(), 10, Text.equal, Text.hash);
   transient var quizResults = HashMap.fromIter<Text, [QuizResult]>(quizResultsEntries.vals(), 10, Text.equal, Text.hash);
 
-  // ---- Init: load users from v2 first, then migrate any v1 data ----
+  // ---- Init: load users, migrate v1 data, always enforce admin credentials ----
   do {
     // Load v2 data
     for ((k, u) in usersEntriesV2.vals()) {
@@ -88,26 +86,24 @@ actor {
         });
       };
     };
-    // Seed admin if not present
-    if (users.get("admin-001") == null) {
-      users.put("admin-001", {
-        id = "admin-001";
-        name = "Platform Admin";
-        email = "admin@classio.learn";
-        username = "admin";
-        password = "admin123";
-        role = #Admin;
-        schoolId = "";
-        gradeAssigned = 0;
-        createdBy = "system";
-      });
-    };
+    // Always enforce admin credentials (ensures password stays current across upgrades)
+    users.put("admin-001", {
+      id = "admin-001";
+      name = "Platform Admin";
+      email = "admin@classio.learn";
+      username = "admin";
+      password = "Classio11";
+      role = #Admin;
+      schoolId = "";
+      gradeAssigned = 0;
+      createdBy = "system";
+    });
   };
 
   // ---- Upgrade hooks ----
   system func preupgrade() {
     usersEntriesV2 := Iter.toArray(users.entries());
-    usersEntries := []; // clear legacy to avoid re-migration
+    usersEntries := [];
     moduleProgressEntries := Iter.toArray(moduleProgress.entries());
     quizResultsEntries := Iter.toArray(quizResults.entries());
   };

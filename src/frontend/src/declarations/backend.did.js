@@ -8,6 +8,7 @@ const User = IDL.Record({
   name: IDL.Text,
   email: IDL.Text,
   username: IDL.Text,
+  password: IDL.Text,
   role: Role,
   schoolId: IDL.Text,
   gradeAssigned: IDL.Nat,
@@ -29,9 +30,10 @@ const ResultReportText = IDL.Variant({ ok: TeacherReport, err: IDL.Text });
 const ResultStatsText = IDL.Variant({ ok: PlatformStats, err: IDL.Text });
 
 export const idlService = IDL.Service({
-  login: IDL.Func([IDL.Text], [ResultUserText], ['query']),
-  createSchoolAdmin: IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text], [ResultUserText], []),
-  createTeacher: IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Nat], [ResultUserText], []),
+  login: IDL.Func([IDL.Text, IDL.Text], [ResultUserText], ['query']),
+  changePassword: IDL.Func([IDL.Text, IDL.Text, IDL.Text], [ResultTextText], []),
+  createSchoolAdmin: IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text], [ResultUserText], []),
+  createTeacher: IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Nat], [ResultUserText], []),
   markSectionComplete: IDL.Func([IDL.Text, IDL.Nat, IDL.Text], [ResultTextText], []),
   submitQuiz: IDL.Func([IDL.Text, IDL.Nat, IDL.Nat, IDL.Nat], [ResultTextText], []),
   getMyReport: IDL.Func([IDL.Text], [ResultReportText], ['query']),
@@ -45,7 +47,7 @@ export const idlService = IDL.Service({
 export const idlInitArgs = [];
 export const idlFactory = ({ IDL }) => {
   const Role = IDL.Variant({ Admin: IDL.Null, SchoolAdmin: IDL.Null, Teacher: IDL.Null });
-  const User = IDL.Record({ id: IDL.Text, name: IDL.Text, email: IDL.Text, username: IDL.Text, role: Role, schoolId: IDL.Text, gradeAssigned: IDL.Nat, createdBy: IDL.Text });
+  const User = IDL.Record({ id: IDL.Text, name: IDL.Text, email: IDL.Text, username: IDL.Text, password: IDL.Text, role: Role, schoolId: IDL.Text, gradeAssigned: IDL.Nat, createdBy: IDL.Text });
   const ModuleProgress = IDL.Record({ gradeNumber: IDL.Nat, sectionId: IDL.Text, completed: IDL.Bool });
   const QuizResult = IDL.Record({ gradeNumber: IDL.Nat, score: IDL.Nat, totalQuestions: IDL.Nat });
   const TeacherReport = IDL.Record({ userId: IDL.Text, name: IDL.Text, completedSections: IDL.Vec(ModuleProgress), quizResults: IDL.Vec(QuizResult) });
@@ -56,9 +58,10 @@ export const idlFactory = ({ IDL }) => {
   const ResultReportText = IDL.Variant({ ok: TeacherReport, err: IDL.Text });
   const ResultStatsText = IDL.Variant({ ok: PlatformStats, err: IDL.Text });
   return IDL.Service({
-    login: IDL.Func([IDL.Text], [ResultUserText], ['query']),
-    createSchoolAdmin: IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text], [ResultUserText], []),
-    createTeacher: IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Nat], [ResultUserText], []),
+    login: IDL.Func([IDL.Text, IDL.Text], [ResultUserText], ['query']),
+    changePassword: IDL.Func([IDL.Text, IDL.Text, IDL.Text], [ResultTextText], []),
+    createSchoolAdmin: IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text], [ResultUserText], []),
+    createTeacher: IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Nat], [ResultUserText], []),
     markSectionComplete: IDL.Func([IDL.Text, IDL.Nat, IDL.Text], [ResultTextText], []),
     submitQuiz: IDL.Func([IDL.Text, IDL.Nat, IDL.Nat, IDL.Nat], [ResultTextText], []),
     getMyReport: IDL.Func([IDL.Text], [ResultReportText], ['query']),

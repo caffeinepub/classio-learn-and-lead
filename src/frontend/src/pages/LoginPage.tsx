@@ -6,7 +6,7 @@ import {
   GraduationCap,
   RefreshCw,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { useActor } from "../hooks/useActor";
@@ -17,10 +17,12 @@ interface Props {
 
 export default function LoginPage({ onLogin }: Props) {
   const { actor, isFetching } = useActor();
+
+  // Stable refs so callbacks always have latest values
   const actorRef = useRef(actor);
   actorRef.current = actor;
-  const isFetchingRef = useRef(isFetching);
-  isFetchingRef.current = isFetching;
+  const onLoginRef = useRef(onLogin);
+  onLoginRef.current = onLogin;
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -32,94 +34,77 @@ export default function LoginPage({ onLogin }: Props) {
     password: string;
   } | null>(null);
 
-  const attemptLogin = async (user: string, pass: string): Promise<boolean> => {
-    const result = await (actorRef.current as any).login(user.trim(), pass);
-    if ("ok" in (result as object)) {
-      onLogin((result as { ok: unknown }).ok);
-      return true;
-    }
-    setError("Invalid username or password. Please check and try again.");
-    return false;
-  };
+  const isWaitingForServer = !!pendingCredentials && (isFetching || !actor);
 
-  const waitForActor = async (): Promise<boolean> => {
-    const maxWait = 15000;
-    const interval = 500;
-    let elapsed = 0;
-    while (elapsed < maxWait) {
-      if (actorRef.current && !isFetchingRef.current) return true;
-      await new Promise((res) => setTimeout(res, interval));
-      elapsed += interval;
+  // Auto-retry when actor becomes available and there are pending credentials
+  useEffect(() => {
+    if (!pendingCredentials || !actor || isFetching) return;
+
+    const { username: u, password: p } = pendingCredentials;
+    setPendingCredentials(null);
+    setLoading(true);
+
+    (actorRef.current as any)
+      .login(u.trim(), p)
+      .then((result: unknown) => {
+        if (result && typeof result === "object" && "ok" in result) {
+          onLoginRef.current((result as { ok: unknown }).ok);
+        } else {
+          setError("Invalid username or password. Please check and try again.");
+        }
+      })
+      .catch(() => {
+        setError("Login failed. Please try again.");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [actor, isFetching, pendingCredentials]);
+
+  const doLogin = async (user: string, pass: string) => {
+    try {
+      const result = await (actorRef.current as any).login(user.trim(), pass);
+      if (result && typeof result === "object" && "ok" in result) {
+        onLoginRef.current((result as { ok: unknown }).ok);
+        return true;
+      }
+      setError("Invalid username or password. Please check and try again.");
+      return false;
+    } catch {
+      setError("Login failed. Please try again.");
+      return false;
     }
-    return false;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password) return;
-    setLoading(true);
     setError("");
-    setPendingCredentials(null);
 
-    // If actor not ready, wait up to 15s
-    if (!actorRef.current || isFetchingRef.current) {
-      const ready = await waitForActor();
-      if (!ready) {
-        setError(
-          "Server is starting up. Please wait a few seconds and try again.",
-        );
-        setPendingCredentials({ username, password });
-        setLoading(false);
-        return;
-      }
+    // If actor not ready, save credentials and wait reactively
+    if (!actor || isFetching) {
+      setPendingCredentials({ username, password });
+      return;
     }
 
-    try {
-      const success = await attemptLogin(username, password);
-      if (success) return;
-    } catch {
-      // First attempt failed — wait 2s and retry once
-      await new Promise((res) => setTimeout(res, 2000));
-      try {
-        await attemptLogin(username, password);
-      } catch {
-        setError(
-          "Server is starting up. Please wait a few seconds and try again.",
-        );
-        setPendingCredentials({ username, password });
-      }
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true);
+    await doLogin(username, password);
+    setLoading(false);
   };
 
   const handleRetry = async () => {
-    if (!pendingCredentials) return;
+    if (!actor || isFetching) return;
     setError("");
     setLoading(true);
-    setPendingCredentials(null);
+    await doLogin(username, password);
+    setLoading(false);
+  };
 
-    if (!actorRef.current || isFetchingRef.current) {
-      const ready = await waitForActor();
-      if (!ready) {
-        setError("Server is still starting up. Please try again in a moment.");
-        setPendingCredentials(pendingCredentials);
-        setLoading(false);
-        return;
-      }
-    }
-
-    try {
-      await attemptLogin(
-        pendingCredentials.username,
-        pendingCredentials.password,
-      );
-    } catch {
-      setError("Server is still starting up. Please try again in a moment.");
-      setPendingCredentials(pendingCredentials);
-    } finally {
-      setLoading(false);
-    }
+  const buttonLabel = () => {
+    if (isWaitingForServer) return "Waiting for server...";
+    if (loading) return "Signing in...";
+    if (isFetching) return "Connecting...";
+    return "Sign in";
   };
 
   return (
@@ -132,7 +117,6 @@ export default function LoginPage({ onLogin }: Props) {
             "linear-gradient(160deg, #0f172a 0%, #1e293b 60%, #0c1a3a 100%)",
         }}
       >
-        {/* Decorative circles */}
         <div
           className="absolute top-[-80px] right-[-80px] w-64 h-64 rounded-full opacity-10"
           style={{
@@ -146,7 +130,6 @@ export default function LoginPage({ onLogin }: Props) {
           }}
         />
 
-        {/* Top badge */}
         <div className="relative z-10">
           <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 backdrop-blur-sm rounded-full px-4 py-2 text-sm font-semibold tracking-widest uppercase">
             <BookOpen className="w-4 h-4 text-indigo-300" />
@@ -154,7 +137,6 @@ export default function LoginPage({ onLogin }: Props) {
           </div>
         </div>
 
-        {/* Main content */}
         <div className="relative z-10 flex-1 flex flex-col justify-center py-10">
           <h1 className="text-5xl font-extrabold leading-tight mb-3">
             Empower Your
@@ -177,7 +159,6 @@ export default function LoginPage({ onLogin }: Props) {
             educators across all grade levels.
           </p>
 
-          {/* Stats */}
           <div className="mt-10 flex gap-8">
             <div className="text-center">
               <div className="text-3xl font-bold text-white">10</div>
@@ -198,7 +179,6 @@ export default function LoginPage({ onLogin }: Props) {
           </div>
         </div>
 
-        {/* Bottom tagline */}
         <div className="relative z-10">
           <p className="text-slate-400 text-sm">Learn and Lead</p>
         </div>
@@ -206,7 +186,6 @@ export default function LoginPage({ onLogin }: Props) {
 
       {/* Right Panel — White */}
       <div className="w-full lg:w-1/2 flex flex-col bg-white">
-        {/* Top nav */}
         <div className="p-6 lg:p-8 flex items-center justify-between">
           <button
             type="button"
@@ -216,7 +195,6 @@ export default function LoginPage({ onLogin }: Props) {
             <ArrowLeft className="w-4 h-4" />
             Back to Portal
           </button>
-          {/* Classio logo — top right */}
           <img
             src="/assets/uploads/classio_logo_reel_compressed-019d30ca-b132-705d-98da-5b01d58eace4-1.jpeg"
             alt="Classio - Learn and Lead"
@@ -224,10 +202,8 @@ export default function LoginPage({ onLogin }: Props) {
           />
         </div>
 
-        {/* Center form */}
         <div className="flex-1 flex flex-col items-center justify-center px-8 pb-12">
           <div className="w-full max-w-md">
-            {/* Mobile logo */}
             <div className="lg:hidden mb-8 text-center">
               <img
                 src="/assets/uploads/classio_logo_reel_compressed-019d30ca-b132-705d-98da-5b01d58eace4-1.jpeg"
@@ -236,7 +212,6 @@ export default function LoginPage({ onLogin }: Props) {
               />
             </div>
 
-            {/* Heading */}
             <div className="mb-8">
               <div className="inline-flex items-center gap-2 mb-4">
                 <GraduationCap className="w-6 h-6 text-indigo-600" />
@@ -252,8 +227,8 @@ export default function LoginPage({ onLogin }: Props) {
               </p>
             </div>
 
-            {/* Connecting banner */}
-            {isFetching && (
+            {/* Status banner */}
+            {(isFetching || isWaitingForServer) && (
               <div
                 className="mb-5 bg-indigo-50 border border-indigo-200 text-indigo-700 px-4 py-3 rounded-xl text-sm flex items-center gap-2"
                 data-ocid="login.loading_state"
@@ -281,13 +256,13 @@ export default function LoginPage({ onLogin }: Props) {
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                   />
                 </svg>
-                Connecting to server, please wait...
+                {isWaitingForServer
+                  ? "Server is warming up, will sign you in automatically..."
+                  : "Connecting to server, please wait..."}
               </div>
             )}
 
-            {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Username field */}
               <div className="space-y-1.5">
                 <Label
                   htmlFor="username"
@@ -307,7 +282,6 @@ export default function LoginPage({ onLogin }: Props) {
                 />
               </div>
 
-              {/* Password field */}
               <div className="space-y-1.5">
                 <Label
                   htmlFor="password"
@@ -343,7 +317,6 @@ export default function LoginPage({ onLogin }: Props) {
                 </div>
               </div>
 
-              {/* Help link */}
               <div className="text-right">
                 <span className="text-xs text-slate-400">
                   Need help?{" "}
@@ -356,14 +329,14 @@ export default function LoginPage({ onLogin }: Props) {
                 </span>
               </div>
 
-              {/* Error */}
-              {error && (
+              {/* Error — hidden while waiting for server */}
+              {error && !isWaitingForServer && (
                 <div
                   className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm"
                   data-ocid="login.error_state"
                 >
                   <p>{error}</p>
-                  {pendingCredentials && (
+                  {actor && !isFetching && (
                     <button
                       type="button"
                       onClick={handleRetry}
@@ -378,32 +351,28 @@ export default function LoginPage({ onLogin }: Props) {
                 </div>
               )}
 
-              {/* Submit button */}
               <button
                 type="submit"
-                disabled={loading || !username.trim() || !password}
+                disabled={
+                  loading || isWaitingForServer || !username.trim() || !password
+                }
                 data-ocid="login.submit_button"
                 className="w-full h-12 rounded-xl font-semibold text-base text-white transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
                 style={{
-                  background: loading
-                    ? "#6366f1"
-                    : "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
-                  boxShadow: loading
-                    ? "none"
-                    : "0 4px 20px rgba(99,102,241,0.35)",
+                  background:
+                    loading || isWaitingForServer
+                      ? "#6366f1"
+                      : "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+                  boxShadow:
+                    loading || isWaitingForServer
+                      ? "none"
+                      : "0 4px 20px rgba(99,102,241,0.35)",
                 }}
               >
-                {loading
-                  ? isFetching
-                    ? "Waiting for server..."
-                    : "Signing in..."
-                  : isFetching
-                    ? "Connecting..."
-                    : "Sign in"}
+                {buttonLabel()}
               </button>
             </form>
 
-            {/* Footer copyright */}
             <p className="mt-10 text-center text-xs text-slate-400">
               © {new Date().getFullYear()} Classio Learn. All rights reserved.{" "}
               <a

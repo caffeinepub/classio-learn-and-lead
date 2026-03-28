@@ -5,7 +5,7 @@ import type { IDL } from '@icp-sdk/core/candid';
 
 export type Role = { Admin: null } | { SchoolAdmin: null } | { Teacher: null };
 export interface User {
-  id: string; name: string; email: string; username: string;
+  id: string; name: string; email: string; username: string; password: string;
   role: Role; schoolId: string; gradeAssigned: bigint; createdBy: string;
 }
 export interface ModuleProgress { gradeNumber: bigint; sectionId: string; completed: boolean; }
@@ -23,9 +23,10 @@ export type ResultReport = { ok: TeacherReport } | { err: string };
 export type ResultStats = { ok: PlatformStats } | { err: string };
 
 export interface _SERVICE {
-  login: ActorMethod<[string], ResultUser>;
-  createSchoolAdmin: ActorMethod<[string, string, string, string, string], ResultUser>;
-  createTeacher: ActorMethod<[string, string, string, string, bigint], ResultUser>;
+  login: ActorMethod<[string, string], ResultUser>;
+  changePassword: ActorMethod<[string, string, string], ResultText>;
+  createSchoolAdmin: ActorMethod<[string, string, string, string, string, string], ResultUser>;
+  createTeacher: ActorMethod<[string, string, string, string, string, bigint], ResultUser>;
   markSectionComplete: ActorMethod<[string, bigint, string], ResultText>;
   submitQuiz: ActorMethod<[string, bigint, bigint, bigint], ResultText>;
   getMyReport: ActorMethod<[string], ResultReport>;
