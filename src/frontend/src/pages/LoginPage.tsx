@@ -13,7 +13,6 @@ export default function LoginPage({ onLogin }: Props) {
   const { actor, isFetching } = useActor();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [showUsername, setShowUsername] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -119,26 +118,16 @@ export default function LoginPage({ onLogin }: Props) {
           </div>
         </div>
 
-        {/* Bottom logo */}
-        <div className="relative z-10 flex items-center gap-3">
-          <img
-            src="/assets/uploads/classio_logo_reel_compressed-019d30ca-b132-705d-98da-5b01d58eace4-1.jpeg"
-            alt="Classio - Learn and Lead"
-            className="w-14 h-14 object-contain bg-white rounded-xl p-1 shadow-lg"
-          />
-          <div>
-            <div className="text-white font-semibold text-sm">
-              Classio Learn
-            </div>
-            <div className="text-slate-400 text-xs">Learn and Lead</div>
-          </div>
+        {/* Bottom tagline */}
+        <div className="relative z-10">
+          <p className="text-slate-400 text-sm">Learn and Lead</p>
         </div>
       </div>
 
       {/* Right Panel — White */}
       <div className="w-full lg:w-1/2 flex flex-col bg-white">
         {/* Top nav */}
-        <div className="p-6 lg:p-8">
+        <div className="p-6 lg:p-8 flex items-center justify-between">
           <button
             type="button"
             className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-indigo-600 transition-colors"
@@ -147,6 +136,12 @@ export default function LoginPage({ onLogin }: Props) {
             <ArrowLeft className="w-4 h-4" />
             Back to Portal
           </button>
+          {/* Classio logo — top right */}
+          <img
+            src="/assets/uploads/classio_logo_reel_compressed-019d30ca-b132-705d-98da-5b01d58eace4-1.jpeg"
+            alt="Classio - Learn and Lead"
+            className="w-14 h-14 object-contain rounded-xl shadow"
+          />
         </div>
 
         {/* Center form */}
@@ -220,32 +215,16 @@ export default function LoginPage({ onLogin }: Props) {
                 >
                   Username
                 </Label>
-                <div className="relative">
-                  <Input
-                    id="username"
-                    type={showUsername ? "text" : "password"}
-                    placeholder="Enter your username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="h-12 pr-11 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl text-slate-900 placeholder:text-slate-400"
-                    autoComplete="username"
-                    data-ocid="login.input"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowUsername(!showUsername)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                    aria-label={
-                      showUsername ? "Hide username" : "Show username"
-                    }
-                  >
-                    {showUsername ? (
-                      <EyeOff className="w-5 h-5" />
-                    ) : (
-                      <Eye className="w-5 h-5" />
-                    )}
-                  </button>
-                </div>
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="Enter your username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="h-12 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl text-slate-900 placeholder:text-slate-400"
+                  autoComplete="username"
+                  data-ocid="login.input"
+                />
               </div>
 
               {/* Password field */}
