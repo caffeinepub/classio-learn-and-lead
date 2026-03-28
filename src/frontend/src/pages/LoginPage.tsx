@@ -1,6 +1,12 @@
-import { ArrowLeft, BookOpen, Eye, EyeOff, GraduationCap } from "lucide-react";
-import { useState } from "react";
-import { Button } from "../components/ui/button";
+import {
+  ArrowLeft,
+  BookOpen,
+  Eye,
+  EyeOff,
+  GraduationCap,
+  RefreshCw,
+} from "lucide-react";
+import { useRef, useState } from "react";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { useActor } from "../hooks/useActor";
@@ -11,32 +17,106 @@ interface Props {
 
 export default function LoginPage({ onLogin }: Props) {
   const { actor, isFetching } = useActor();
+  const actorRef = useRef(actor);
+  actorRef.current = actor;
+  const isFetchingRef = useRef(isFetching);
+  isFetchingRef.current = isFetching;
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [pendingCredentials, setPendingCredentials] = useState<{
+    username: string;
+    password: string;
+  } | null>(null);
+
+  const attemptLogin = async (user: string, pass: string): Promise<boolean> => {
+    const result = await (actorRef.current as any).login(user.trim(), pass);
+    if ("ok" in (result as object)) {
+      onLogin((result as { ok: unknown }).ok);
+      return true;
+    }
+    setError("Invalid username or password. Please check and try again.");
+    return false;
+  };
+
+  const waitForActor = async (): Promise<boolean> => {
+    const maxWait = 15000;
+    const interval = 500;
+    let elapsed = 0;
+    while (elapsed < maxWait) {
+      if (actorRef.current && !isFetchingRef.current) return true;
+      await new Promise((res) => setTimeout(res, interval));
+      elapsed += interval;
+    }
+    return false;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password) return;
-    if (!actor) {
-      setError(
-        "Still connecting to the server. Please wait a moment and try again.",
-      );
-      return;
-    }
     setLoading(true);
     setError("");
-    try {
-      const result = await (actor as any).login(username.trim(), password);
-      if ("ok" in (result as object)) {
-        onLogin((result as { ok: unknown }).ok);
-      } else {
-        setError("Invalid username or password. Please check and try again.");
+    setPendingCredentials(null);
+
+    // If actor not ready, wait up to 15s
+    if (!actorRef.current || isFetchingRef.current) {
+      const ready = await waitForActor();
+      if (!ready) {
+        setError(
+          "Server is starting up. Please wait a few seconds and try again.",
+        );
+        setPendingCredentials({ username, password });
+        setLoading(false);
+        return;
       }
+    }
+
+    try {
+      const success = await attemptLogin(username, password);
+      if (success) return;
     } catch {
-      setError("Connection error. Please try again.");
+      // First attempt failed — wait 2s and retry once
+      await new Promise((res) => setTimeout(res, 2000));
+      try {
+        await attemptLogin(username, password);
+      } catch {
+        setError(
+          "Server is starting up. Please wait a few seconds and try again.",
+        );
+        setPendingCredentials({ username, password });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRetry = async () => {
+    if (!pendingCredentials) return;
+    setError("");
+    setLoading(true);
+    setPendingCredentials(null);
+
+    if (!actorRef.current || isFetchingRef.current) {
+      const ready = await waitForActor();
+      if (!ready) {
+        setError("Server is still starting up. Please try again in a moment.");
+        setPendingCredentials(pendingCredentials);
+        setLoading(false);
+        return;
+      }
+    }
+
+    try {
+      await attemptLogin(
+        pendingCredentials.username,
+        pendingCredentials.password,
+      );
+    } catch {
+      setError("Server is still starting up. Please try again in a moment.");
+      setPendingCredentials(pendingCredentials);
     } finally {
       setLoading(false);
     }
@@ -282,31 +362,41 @@ export default function LoginPage({ onLogin }: Props) {
                   className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm"
                   data-ocid="login.error_state"
                 >
-                  {error}
+                  <p>{error}</p>
+                  {pendingCredentials && (
+                    <button
+                      type="button"
+                      onClick={handleRetry}
+                      disabled={loading}
+                      data-ocid="login.retry_button"
+                      className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 hover:text-red-800 underline underline-offset-2 transition-colors disabled:opacity-50"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Retry
+                    </button>
+                  )}
                 </div>
               )}
 
               {/* Submit button */}
               <button
                 type="submit"
-                disabled={
-                  loading || !username.trim() || !password || isFetching
-                }
+                disabled={loading || !username.trim() || !password}
                 data-ocid="login.submit_button"
                 className="w-full h-12 rounded-xl font-semibold text-base text-white transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
                 style={{
-                  background:
-                    loading || isFetching
-                      ? "#6366f1"
-                      : "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
-                  boxShadow:
-                    loading || isFetching
-                      ? "none"
-                      : "0 4px 20px rgba(99,102,241,0.35)",
+                  background: loading
+                    ? "#6366f1"
+                    : "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+                  boxShadow: loading
+                    ? "none"
+                    : "0 4px 20px rgba(99,102,241,0.35)",
                 }}
               >
                 {loading
-                  ? "Signing in..."
+                  ? isFetching
+                    ? "Waiting for server..."
+                    : "Signing in..."
                   : isFetching
                     ? "Connecting..."
                     : "Sign in"}
