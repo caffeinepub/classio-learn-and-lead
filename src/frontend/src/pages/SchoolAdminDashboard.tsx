@@ -60,6 +60,7 @@ export default function SchoolAdminDashboard({ user, onLogout }: Props) {
     name: "",
     email: "",
     username: "",
+    password: "",
     grade: "1",
   });
   const [formError, setFormError] = useState("");
@@ -111,23 +112,30 @@ export default function SchoolAdminDashboard({ user, onLogout }: Props) {
 
   const handleCreate = async () => {
     if (!actor) return;
-    if (!form.name || !form.username) {
+    if (!form.name || !form.username || !form.password) {
       setFormError("Please fill all required fields.");
       return;
     }
     setFormLoading(true);
     setFormError("");
     try {
-      const res = await actor.createTeacher(
+      const res = await (actor as any).createTeacher(
         user.id,
         form.name,
         form.email,
         form.username,
+        form.password,
         BigInt(form.grade),
       );
       if ("ok" in (res as object)) {
         setShowModal(false);
-        setForm({ name: "", email: "", username: "", grade: "1" });
+        setForm({
+          name: "",
+          email: "",
+          username: "",
+          password: "",
+          grade: "1",
+        });
         showToast("Teacher account created!");
         loadTeachers();
       } else {
@@ -389,7 +397,7 @@ export default function SchoolAdminDashboard({ user, onLogout }: Props) {
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-base">
-                        {selectedTeacher.name}’s Progress
+                        {selectedTeacher.name}'s Progress
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -573,6 +581,15 @@ export default function SchoolAdminDashboard({ user, onLogout }: Props) {
                 placeholder="e.g. anjali.verma"
                 value={form.username}
                 onChange={(e) => setForm({ ...form, username: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Password *</Label>
+              <Input
+                type="password"
+                placeholder="Set a password"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
               />
             </div>
             <div className="space-y-1">

@@ -47,6 +47,7 @@ export default function AdminDashboard({ user, onLogout }: Props) {
     name: "",
     email: "",
     username: "",
+    password: "",
     schoolName: "",
   });
   const [formError, setFormError] = useState("");
@@ -117,23 +118,30 @@ export default function AdminDashboard({ user, onLogout }: Props) {
 
   const handleCreate = async () => {
     if (!actor) return;
-    if (!form.name || !form.username || !form.schoolName) {
+    if (!form.name || !form.username || !form.password || !form.schoolName) {
       setFormError("Please fill all required fields.");
       return;
     }
     setFormLoading(true);
     setFormError("");
     try {
-      const res = await actor.createSchoolAdmin(
+      const res = await (actor as any).createSchoolAdmin(
         user.id,
         form.name,
         form.email,
         form.username,
+        form.password,
         form.schoolName,
       );
       if ("ok" in (res as object)) {
         setShowModal(false);
-        setForm({ name: "", email: "", username: "", schoolName: "" });
+        setForm({
+          name: "",
+          email: "",
+          username: "",
+          password: "",
+          schoolName: "",
+        });
         showToast("School Admin created successfully!");
         loadSchoolAdmins();
         loadStats();
@@ -363,6 +371,15 @@ export default function AdminDashboard({ user, onLogout }: Props) {
                 placeholder="e.g. priya.sharma"
                 value={form.username}
                 onChange={(e) => setForm({ ...form, username: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Password *</Label>
+              <Input
+                type="password"
+                placeholder="Set a password"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
               />
             </div>
             <div className="space-y-1">

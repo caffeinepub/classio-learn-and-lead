@@ -9,11 +9,24 @@ actor {
   // ---- Types ----
   type Role = { #Admin; #SchoolAdmin; #Teacher };
 
+  // Legacy type (no password) — kept to receive existing stable data on upgrade
+  type UserV1 = {
+    id: Text;
+    name: Text;
+    email: Text;
+    username: Text;
+    role: Role;
+    schoolId: Text;
+    gradeAssigned: Nat;
+    createdBy: Text;
+  };
+
   type User = {
     id: Text;
     name: Text;
     email: Text;
     username: Text;
+    password: Text;
     role: Role;
     schoolId: Text;
     gradeAssigned: Nat;
@@ -40,43 +53,69 @@ actor {
   };
 
   // ---- Stable storage ----
-  stable var usersEntries : [(Text, User)] = [];
+  // usersEntries: keeps old name + old type to receive existing deployed data during upgrade
+  stable var usersEntries : [(Text, UserV1)] = [];
+  // usersEntriesV2: new stable storage with password field
+  stable var usersEntriesV2 : [(Text, User)] = [];
   stable var moduleProgressEntries : [(Text, [ModuleProgress])] = [];
   stable var quizResultsEntries : [(Text, [QuizResult])] = [];
   stable var nextId : Nat = 1;
 
-  // ---- In-memory maps (transient = not auto-stable) ----
-  transient var users = HashMap.fromIter<Text, User>(usersEntries.vals(), 10, Text.equal, Text.hash);
+  // ---- In-memory maps ----
+  transient var users = HashMap.HashMap<Text, User>(10, Text.equal, Text.hash);
   transient var moduleProgress = HashMap.fromIter<Text, [ModuleProgress]>(moduleProgressEntries.vals(), 10, Text.equal, Text.hash);
   transient var quizResults = HashMap.fromIter<Text, [QuizResult]>(quizResultsEntries.vals(), 10, Text.equal, Text.hash);
 
-  // ---- Upgrade hooks ----
-  system func preupgrade() {
-    usersEntries := Iter.toArray(users.entries());
-    moduleProgressEntries := Iter.toArray(moduleProgress.entries());
-    quizResultsEntries := Iter.toArray(quizResults.entries());
-  };
-
-  system func postupgrade() {
-    usersEntries := [];
-    moduleProgressEntries := [];
-    quizResultsEntries := [];
-  };
-
-  // Seed admin on first deploy
+  // ---- Init: load users from v2 first, then migrate any v1 data ----
   do {
+    // Load v2 data
+    for ((k, u) in usersEntriesV2.vals()) {
+      users.put(k, u);
+    };
+    // Migrate v1 data (old deployments without password)
+    for ((k, u) in usersEntries.vals()) {
+      if (users.get(k) == null) {
+        users.put(k, {
+          id = u.id;
+          name = u.name;
+          email = u.email;
+          username = u.username;
+          password = "classio123";
+          role = u.role;
+          schoolId = u.schoolId;
+          gradeAssigned = u.gradeAssigned;
+          createdBy = u.createdBy;
+        });
+      };
+    };
+    // Seed admin if not present
     if (users.get("admin-001") == null) {
       users.put("admin-001", {
         id = "admin-001";
         name = "Platform Admin";
         email = "admin@classio.learn";
         username = "admin";
+        password = "admin123";
         role = #Admin;
         schoolId = "";
         gradeAssigned = 0;
         createdBy = "system";
       });
     };
+  };
+
+  // ---- Upgrade hooks ----
+  system func preupgrade() {
+    usersEntriesV2 := Iter.toArray(users.entries());
+    usersEntries := []; // clear legacy to avoid re-migration
+    moduleProgressEntries := Iter.toArray(moduleProgress.entries());
+    quizResultsEntries := Iter.toArray(quizResults.entries());
+  };
+
+  system func postupgrade() {
+    usersEntriesV2 := [];
+    moduleProgressEntries := [];
+    quizResultsEntries := [];
   };
 
   // ---- Helpers ----
@@ -95,14 +134,28 @@ actor {
 
   // ---- Public API ----
 
-  public query func login(username: Text) : async Result.Result<User, Text> {
+  public query func login(username: Text, password: Text) : async Result.Result<User, Text> {
     switch (findByUsername(username)) {
-      case (?u) #ok(u);
+      case (?u) {
+        if (u.password == password) #ok(u)
+        else #err("Invalid password")
+      };
       case null #err("User not found");
     }
   };
 
-  public func createSchoolAdmin(creatorId: Text, name: Text, email: Text, username: Text, schoolName: Text) : async Result.Result<User, Text> {
+  public func changePassword(userId: Text, oldPassword: Text, newPassword: Text) : async Result.Result<Text, Text> {
+    switch (users.get(userId)) {
+      case (?u) {
+        if (u.password != oldPassword) return #err("Current password is incorrect");
+        users.put(userId, { id = u.id; name = u.name; email = u.email; username = u.username; password = newPassword; role = u.role; schoolId = u.schoolId; gradeAssigned = u.gradeAssigned; createdBy = u.createdBy });
+        #ok("Password changed successfully")
+      };
+      case null #err("User not found");
+    }
+  };
+
+  public func createSchoolAdmin(creatorId: Text, name: Text, email: Text, username: Text, password: Text, schoolName: Text) : async Result.Result<User, Text> {
     switch (users.get(creatorId)) {
       case (?creator) {
         if (creator.role != #Admin) return #err("Only Admin can create School Admins");
@@ -111,7 +164,7 @@ actor {
           case null {};
         };
         let id = getNextId();
-        let newUser : User = { id; name; email; username; role = #SchoolAdmin; schoolId = schoolName; gradeAssigned = 0; createdBy = creatorId };
+        let newUser : User = { id; name; email; username; password; role = #SchoolAdmin; schoolId = schoolName; gradeAssigned = 0; createdBy = creatorId };
         users.put(id, newUser);
         #ok(newUser)
       };
@@ -119,7 +172,7 @@ actor {
     }
   };
 
-  public func createTeacher(creatorId: Text, name: Text, email: Text, username: Text, gradeAssigned: Nat) : async Result.Result<User, Text> {
+  public func createTeacher(creatorId: Text, name: Text, email: Text, username: Text, password: Text, gradeAssigned: Nat) : async Result.Result<User, Text> {
     switch (users.get(creatorId)) {
       case (?creator) {
         if (creator.role != #SchoolAdmin) return #err("Only School Admin can create Teachers");
@@ -128,7 +181,7 @@ actor {
           case null {};
         };
         let id = getNextId();
-        let newUser : User = { id; name; email; username; role = #Teacher; schoolId = creator.schoolId; gradeAssigned; createdBy = creatorId };
+        let newUser : User = { id; name; email; username; password; role = #Teacher; schoolId = creator.schoolId; gradeAssigned; createdBy = creatorId };
         users.put(id, newUser);
         #ok(newUser)
       };
