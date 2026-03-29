@@ -45,7 +45,7 @@ function buildModules(grade: number): Module[] {
   return [
     {
       id: "m1",
-      videoUrl: "https://www.youtube.com/embed/qlS9qLCqL3A",
+      videoUrl: "https://www.youtube.com/embed/lAlMJ7mYy_I",
       title: "E-Classroom Management",
       duration: "60 min",
       content: `Digital and physical classroom management are two sides of the same coin for Grade ${g} teachers. E-Classroom Management involves establishing clear digital norms, leveraging technology platforms purposefully, and maintaining student focus in hybrid or technology-enhanced environments.
@@ -135,7 +135,7 @@ function buildModules(grade: number): Module[] {
     },
     {
       id: "m2",
-      videoUrl: "https://www.youtube.com/embed/V4NJo2Mfvrc",
+      videoUrl: "https://www.youtube.com/embed/UCFg9bcW7Bk",
       title: "How to Conduct Activities",
       duration: "65 min",
       content: `Well-designed activities are the heartbeat of Grade ${g} learning. This module covers the complete lifecycle of an activity — from planning and preparation to facilitation and debrief.
@@ -221,7 +221,7 @@ function buildModules(grade: number): Module[] {
     },
     {
       id: "m3",
-      videoUrl: "https://www.youtube.com/embed/hFR6UT13c5M",
+      videoUrl: "https://www.youtube.com/embed/ZkXrmyKqmE0",
       title: "Child Behaviour & Psychology",
       duration: "70 min",
       content: `Understanding the psychological foundations of child behavior empowers Grade ${g} teachers to respond wisely rather than react impulsively. Behavior is always communication — the teacher's job is to decode the message.
@@ -303,7 +303,7 @@ function buildModules(grade: number): Module[] {
     },
     {
       id: "m4",
-      videoUrl: "https://www.youtube.com/embed/jTH3ob1IRFo",
+      videoUrl: "https://www.youtube.com/embed/zfGttNFuaWw",
       title: "Managing Classroom Environment",
       duration: "60 min",
       content: `The physical and emotional environment of a classroom profoundly affects learning. Research by Robert Marzano identifies classroom management — including environment design — as accounting for 50% of the variance in student achievement.
@@ -393,7 +393,7 @@ function buildModules(grade: number): Module[] {
     },
     {
       id: "m5",
-      videoUrl: "https://www.youtube.com/embed/l_Vqp1dPuPo",
+      videoUrl: "https://www.youtube.com/embed/SFnMTHhKdkw",
       title: "Building Positive Relationships",
       duration: "65 min",
       content: `Relationship-based teaching is not a soft skill — it is the most evidence-backed driver of student success. John Hattie's Visible Learning meta-analysis found teacher-student relationships have an effect size of 0.72 (extremely high). For Grade ${g} teachers, this module is foundational.
@@ -485,7 +485,7 @@ function buildModules(grade: number): Module[] {
     },
     {
       id: "m6",
-      videoUrl: "https://www.youtube.com/embed/Iq2FqJn2uLM",
+      videoUrl: "https://www.youtube.com/embed/ZIPsPRaZP6M",
       title: "Inclusive Education Practices",
       duration: "70 min",
       content: `Every classroom is diverse. Inclusive education means ensuring all students — regardless of ability, background, language, or need — have genuine access to quality learning. For Grade ${g} teachers, inclusion is not an add-on; it is the baseline expectation.
@@ -575,7 +575,7 @@ function buildModules(grade: number): Module[] {
     },
     {
       id: "m7",
-      videoUrl: "https://www.youtube.com/embed/LZ5spXfDYo0",
+      videoUrl: "https://www.youtube.com/embed/iG9CE55wbtY",
       title: "Student Engagement Strategies",
       duration: "60 min",
       content: `Engagement is not compliance. A student sitting quietly is not necessarily learning. True engagement — intellectual curiosity, emotional investment, and active processing — requires deliberate design. This module gives Grade ${g} teachers a practical toolkit.
@@ -755,7 +755,7 @@ function buildModules(grade: number): Module[] {
     },
     {
       id: "m9",
-      videoUrl: "https://www.youtube.com/embed/p6e4oE4YpkQ",
+      videoUrl: "https://www.youtube.com/embed/q-myBw36_DA",
       title: "Assessment for Learning",
       duration: "70 min",
       content: `Assessment is one of the most powerful tools a teacher has — and one of the most misunderstood. Assessment of Learning (summative) tells you what a student has learned. Assessment for Learning (formative) actively improves learning while it is happening. For Grade ${g}, the emphasis must shift strongly toward the latter.
@@ -846,7 +846,7 @@ function buildModules(grade: number): Module[] {
     },
     {
       id: "m10",
-      videoUrl: "https://www.youtube.com/embed/nKIu9yen5nc",
+      videoUrl: "https://www.youtube.com/embed/uzDsT-25w14",
       title: "Professional Reflection & Growth",
       duration: "60 min",
       content: `Teaching is a profession of perpetual learning. The most effective teachers in the world are not those who have arrived at mastery — they are those who continuously reflect, seek feedback, and grow. This final module for Grade ${g} training focuses on building a sustainable, flourishing professional practice.
@@ -948,43 +948,43 @@ export const GRADE_CONTENT: GradeContent[] = Array.from(
       videos: [
         {
           title: "E-Classroom Management",
-          url: "https://www.youtube.com/embed/oSm1WJ-a_KM",
+          url: "https://www.youtube.com/embed/u8kUwpO3ucw",
         },
         {
           title: "How to Conduct Activities",
-          url: "https://www.youtube.com/embed/pGS_P8-dIvY",
+          url: "https://www.youtube.com/embed/axelin36pmM",
         },
         {
           title: "Child Behaviour & Psychology",
-          url: "https://www.youtube.com/embed/0daMC9OIXaI",
+          url: "https://www.youtube.com/embed/cv9U_VBTWas",
         },
         {
           title: "Managing Classroom Environment",
-          url: "https://www.youtube.com/embed/mHHy9WW9qxo",
+          url: "https://www.youtube.com/embed/sEQKFmBfBcU",
         },
         {
           title: "Building Positive Relationships",
-          url: "https://www.youtube.com/embed/l7ToNT0cHiA",
+          url: "https://www.youtube.com/embed/SFnMTHhKdkw",
         },
         {
           title: "Inclusive Education Practices",
-          url: "https://www.youtube.com/embed/HoVd6tlAVXs",
+          url: "https://www.youtube.com/embed/kEyjlqixq9c",
         },
         {
           title: "Student Engagement Strategies",
-          url: "https://www.youtube.com/embed/3-SHCRrJ3Ew",
+          url: "https://www.youtube.com/embed/9vJRopau0g0",
         },
         {
           title: "Effective Communication",
-          url: "https://www.youtube.com/embed/HEyd-_8jbs0",
+          url: "https://www.youtube.com/embed/HAnw168huqA",
         },
         {
           title: "Assessment for Learning",
-          url: "https://www.youtube.com/embed/vJsJFBMFgXo",
+          url: "https://www.youtube.com/embed/rJxFXjfB_B4",
         },
         {
           title: "Professional Reflection & Growth",
-          url: "https://www.youtube.com/embed/h-BEYEnfA6I",
+          url: "https://www.youtube.com/embed/f_wprGcziso",
         },
       ],
       quiz: [
