@@ -736,6 +736,7 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
                       src={v.url}
                       className="w-full h-full"
                       allowFullScreen
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                       title={v.title}
                     />
                   </div>

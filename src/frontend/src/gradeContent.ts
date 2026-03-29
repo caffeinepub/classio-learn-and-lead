@@ -938,43 +938,43 @@ export const GRADE_CONTENT: GradeContent[] = Array.from(
       videos: [
         {
           title: "E-Classroom Management",
-          url: "https://www.youtube.com/embed/YWkBCUmfIY4",
+          url: "https://www.youtube.com/embed/oSm1WJ-a_KM",
         },
         {
           title: "How to Conduct Activities",
-          url: "https://www.youtube.com/embed/ucZl6vQ_8Uo",
+          url: "https://www.youtube.com/embed/pGS_P8-dIvY",
         },
         {
           title: "Child Behaviour & Psychology",
-          url: "https://www.youtube.com/embed/mmFKOdHolBo",
+          url: "https://www.youtube.com/embed/0daMC9OIXaI",
         },
         {
           title: "Managing Classroom Environment",
-          url: "https://www.youtube.com/embed/r0J9fBOJHI4",
+          url: "https://www.youtube.com/embed/mHHy9WW9qxo",
         },
         {
           title: "Building Positive Relationships",
-          url: "https://www.youtube.com/embed/PHzBgWAHLjk",
+          url: "https://www.youtube.com/embed/l7ToNT0cHiA",
         },
         {
           title: "Inclusive Education Practices",
-          url: "https://www.youtube.com/embed/IiQ4_Tk3E6U",
+          url: "https://www.youtube.com/embed/HoVd6tlAVXs",
         },
         {
           title: "Student Engagement Strategies",
-          url: "https://www.youtube.com/embed/Ov7QkMp7sBQ",
+          url: "https://www.youtube.com/embed/3-SHCRrJ3Ew",
         },
         {
           title: "Effective Communication",
-          url: "https://www.youtube.com/embed/HAnw168huqA",
+          url: "https://www.youtube.com/embed/HEyd-_8jbs0",
         },
         {
           title: "Assessment for Learning",
-          url: "https://www.youtube.com/embed/tKSHSG4nFj0",
+          url: "https://www.youtube.com/embed/vJsJFBMFgXo",
         },
         {
           title: "Professional Reflection & Growth",
-          url: "https://www.youtube.com/embed/Xl2jHFKaj7M",
+          url: "https://www.youtube.com/embed/h-BEYEnfA6I",
         },
       ],
       quiz: [
