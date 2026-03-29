@@ -37,6 +37,15 @@ interface UserProgress {
   quizResults: QuizResult[];
 }
 
+interface ModuleEngagement {
+  readingSeconds: number;
+  videoVisible: boolean;
+  videoWatched: boolean;
+  allTasksDone: boolean;
+}
+
+const MIN_READ_SECONDS = 540;
+
 export default function TeacherDashboard({ user, onLogout }: Props) {
   const { actor } = useActor();
   const assignedGrade = user.gradeAssigned || 1;
@@ -45,7 +54,7 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
     completedSections: [],
     quizResults: [],
   });
-  const [completing, setCompleting] = useState<string | null>(null);
+  const [_completing, setCompleting] = useState<string | null>(null);
   const [quizState, setQuizState] = useState<{
     answers: number[];
     submitted: boolean;
@@ -70,6 +79,121 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
     [key: string]: boolean;
   }>({});
   const certRef = useRef<HTMLDivElement>(null);
+
+  // Monitoring state
+  const [moduleEngagement, setModuleEngagement] = useState<
+    Record<string, ModuleEngagement>
+  >({});
+  const videoRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const observersRef = useRef<Record<string, IntersectionObserver>>({});
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const getEngagement = (moduleId: string): ModuleEngagement =>
+    moduleEngagement[moduleId] ?? {
+      readingSeconds: 0,
+      videoVisible: false,
+      videoWatched: false,
+      allTasksDone: false,
+    };
+
+  const markVideoWatched = (moduleId: string) => {
+    setModuleEngagement((prev) => {
+      const cur = prev[moduleId] ?? {
+        readingSeconds: 0,
+        videoVisible: false,
+        videoWatched: false,
+        allTasksDone: false,
+      };
+      return { ...prev, [moduleId]: { ...cur, videoWatched: true } };
+    });
+  };
+
+  // Reading timer
+  useEffect(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (!activeModule) return;
+    intervalRef.current = setInterval(() => {
+      setModuleEngagement((prev) => {
+        const cur = prev[activeModule] ?? {
+          readingSeconds: 0,
+          videoVisible: false,
+          videoWatched: false,
+          allTasksDone: false,
+        };
+        return {
+          ...prev,
+          [activeModule]: { ...cur, readingSeconds: cur.readingSeconds + 1 },
+        };
+      });
+    }, 1000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [activeModule]);
+
+  // IntersectionObserver for video visibility
+  useEffect(() => {
+    for (const [mid, obs] of Object.entries(observersRef.current)) {
+      if (mid !== activeModule) {
+        obs.disconnect();
+        delete observersRef.current[mid];
+      }
+    }
+    if (!activeModule) return;
+    const timer = setTimeout(() => {
+      const el = videoRefs.current[activeModule];
+      if (!el || observersRef.current[activeModule]) return;
+      const obs = new IntersectionObserver(
+        (entries) => {
+          if (entries[0]?.isIntersecting) {
+            setModuleEngagement((prev) => {
+              const cur = prev[activeModule] ?? {
+                readingSeconds: 0,
+                videoVisible: false,
+                videoWatched: false,
+                allTasksDone: false,
+              };
+              if (cur.videoVisible) return prev;
+              return {
+                ...prev,
+                [activeModule]: { ...cur, videoVisible: true },
+              };
+            });
+            obs.disconnect();
+            delete observersRef.current[activeModule];
+          }
+        },
+        { threshold: 0.5 },
+      );
+      obs.observe(el);
+      observersRef.current[activeModule] = obs;
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [activeModule]);
+
+  // Update allTasksDone
+  useEffect(() => {
+    if (!activeModule) return;
+    const gradeContent = GRADE_CONTENT.find((g) => g.grade === assignedGrade)!;
+    const mod = gradeContent.modules.find((m) => m.id === activeModule);
+    if (!mod) return;
+    const done = mod.activity.tasks.every(
+      (_, ti) => activityChecks[`${activeModule}-${ti}`],
+    );
+    setModuleEngagement((prev) => {
+      const cur = prev[activeModule] ?? {
+        readingSeconds: 0,
+        videoVisible: false,
+        videoWatched: false,
+        allTasksDone: false,
+      };
+      if (cur.allTasksDone === done) return prev;
+      return { ...prev, [activeModule]: { ...cur, allTasksDone: done } };
+    });
+  }, [activityChecks, activeModule, assignedGrade]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -236,6 +360,7 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
   const completedCount = gradeContent.modules.filter((m) =>
     isModuleDone(m.id),
   ).length;
+  const totalHoursCompleted = completedCount;
   const gradeProgress = Math.round(
     (completedCount / gradeContent.modules.length) * 100,
   );
@@ -295,12 +420,39 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
     year: "numeric",
   });
 
+  const formatReadTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
+      <style>{`
+        @media print {
+          body * { visibility: hidden !important; }
+          #print-certificate, #print-certificate * { visibility: visible !important; }
+          #print-certificate {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: white !important;
+            z-index: 9999 !important;
+          }
+          @page { size: A4 landscape; margin: 0; }
+        }
+      `}</style>
+
       <header className="bg-white border-b border-gray-100 sticky top-0 z-30 print:hidden">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <img
-            src="/assets/uploads/classio_logo_reel_compressed-019d30ca-b132-705d-98da-5b01d58eace4-1.jpeg"
+            src="/assets/uploads/classio_logo_reel_compressed-019d30ca-b132-705d-98da-5b01d58eaca4-1.jpeg"
             alt="Classio"
             className="h-9"
           />
@@ -440,6 +592,14 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
           {gradeContent.modules.map((mod, idx) => {
             const done = isModuleDone(mod.id);
             const isOpen = activeModule === mod.id;
+            const eng = getEngagement(mod.id);
+            const checkedCount = mod.activity.tasks.filter(
+              (_, ti) => activityChecks[`${mod.id}-${ti}`],
+            ).length;
+            const readDone = eng.readingSeconds >= MIN_READ_SECONDS;
+            const allUnlocked =
+              readDone && eng.videoWatched && eng.allTasksDone;
+
             return (
               <Card
                 key={mod.id}
@@ -525,6 +685,57 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
                         {mod.content}
                       </div>
 
+                      {/* Module Video */}
+                      <div
+                        className="mb-6"
+                        ref={(el) => {
+                          videoRefs.current[mod.id] = el;
+                        }}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-base">🎬</span>
+                          <h3 className="font-semibold text-gray-800 text-sm">
+                            Module Video: {mod.title}
+                          </h3>
+                          {eng.videoWatched && (
+                            <Badge className="bg-green-100 text-green-700 hover:bg-green-100 text-xs ml-1">
+                              ✓ Watched
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-900 aspect-video">
+                          <iframe
+                            src={mod.videoUrl}
+                            className="w-full h-full"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            allowFullScreen
+                            title={mod.title}
+                          />
+                        </div>
+                        {/* Video watch controls */}
+                        {!eng.videoWatched && !eng.videoVisible && (
+                          <p className="text-xs text-gray-400 mt-2">
+                            📍 Scroll down to the video and watch it completely,
+                            then mark as watched to unlock the quiz
+                          </p>
+                        )}
+                        {!eng.videoWatched && eng.videoVisible && (
+                          <button
+                            type="button"
+                            data-ocid="module.primary_button"
+                            onClick={() => markVideoWatched(mod.id)}
+                            className="mt-3 flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+                          >
+                            ✅ I have watched this video
+                          </button>
+                        )}
+                        {eng.videoWatched && (
+                          <p className="text-sm text-green-600 font-medium mt-2">
+                            ✓ Video marked as watched
+                          </p>
+                        )}
+                      </div>
+
                       {/* Activity Section */}
                       <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-5">
                         <div className="flex items-center gap-2 mb-1">
@@ -567,15 +778,79 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
                           })}
                         </div>
                         <div className="mt-3 text-xs text-amber-700 font-medium">
-                          {
-                            Object.keys(activityChecks).filter(
-                              (k) =>
-                                k.startsWith(`${mod.id}-`) && activityChecks[k],
-                            ).length
-                          }
-                          /{mod.activity.tasks.length} tasks completed
+                          {checkedCount}/{mod.activity.tasks.length} tasks
+                          completed
                         </div>
                       </div>
+
+                      {/* Unlock Progress Checklist */}
+                      {!done && (
+                        <div
+                          className={`rounded-xl border p-4 mb-5 ${
+                            allUnlocked
+                              ? "bg-green-50 border-green-300"
+                              : "bg-slate-50 border-slate-200"
+                          }`}
+                        >
+                          <div className="font-semibold text-sm mb-3 flex items-center gap-2">
+                            {allUnlocked ? (
+                              <span className="text-green-700">
+                                🔓 Quiz Unlocked!
+                              </span>
+                            ) : (
+                              <span className="text-slate-700">
+                                🔒 Complete requirements to unlock quiz
+                              </span>
+                            )}
+                          </div>
+                          <ul className="space-y-2 text-sm">
+                            <li className="flex items-center gap-2">
+                              <span>{readDone ? "✅" : "⏳"}</span>
+                              <span
+                                className={
+                                  readDone
+                                    ? "text-green-700 font-medium"
+                                    : "text-slate-600"
+                                }
+                              >
+                                Read module content (9 min) —{" "}
+                                {readDone
+                                  ? "✓ Done"
+                                  : `${formatReadTime(eng.readingSeconds)} read · ${formatReadTime(MIN_READ_SECONDS - eng.readingSeconds)} remaining`}
+                              </span>
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span>{eng.videoWatched ? "✅" : "⏳"}</span>
+                              <span
+                                className={
+                                  eng.videoWatched
+                                    ? "text-green-700 font-medium"
+                                    : "text-slate-600"
+                                }
+                              >
+                                {eng.videoWatched
+                                  ? "✓ Watched"
+                                  : "Watch the full video above and click 'I have watched this video'"}
+                              </span>
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span>{eng.allTasksDone ? "✅" : "⏳"}</span>
+                              <span
+                                className={
+                                  eng.allTasksDone
+                                    ? "text-green-700 font-medium"
+                                    : "text-slate-600"
+                                }
+                              >
+                                Complete all activity tasks —{" "}
+                                {eng.allTasksDone
+                                  ? "✓ All done"
+                                  : `${checkedCount}/${mod.activity.tasks.length} tasks completed`}
+                              </span>
+                            </li>
+                          </ul>
+                        </div>
+                      )}
 
                       {/* My Learning Test */}
                       {(() => {
@@ -590,16 +865,35 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
                                 Test your understanding of this module with 5
                                 quick questions.
                               </p>
-                              <button
-                                type="button"
-                                data-ocid="module.primary_button"
-                                onClick={() =>
-                                  initModuleQuiz(mod.id, mod.moduleQuiz.length)
-                                }
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
-                              >
-                                Start Learning Test
-                              </button>
+                              {!done && !allUnlocked ? (
+                                <div>
+                                  <button
+                                    type="button"
+                                    data-ocid="module.primary_button"
+                                    disabled
+                                    className="bg-gray-300 text-gray-500 cursor-not-allowed px-5 py-2 rounded-lg text-sm font-medium"
+                                  >
+                                    🔒 Start Learning Test
+                                  </button>
+                                  <p className="text-xs text-gray-400 mt-2">
+                                    Complete the requirements above to unlock
+                                  </p>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  data-ocid="module.primary_button"
+                                  onClick={() =>
+                                    initModuleQuiz(
+                                      mod.id,
+                                      mod.moduleQuiz.length,
+                                    )
+                                  }
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+                                >
+                                  Start Learning Test
+                                </button>
+                              )}
                             </div>
                           );
                         }
@@ -610,18 +904,26 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
                           const passed = pct >= 70;
                           return (
                             <div
-                              className={`border rounded-xl p-5 mb-5 ${passed ? "bg-green-50 border-green-200" : "bg-orange-50 border-orange-200"}`}
+                              className={`border rounded-xl p-5 mb-5 ${
+                                passed
+                                  ? "bg-green-50 border-green-200"
+                                  : "bg-orange-50 border-orange-200"
+                              }`}
                             >
                               <h3 className="font-bold text-base mb-2">
                                 📝 My Learning Test — Results
                               </h3>
                               <div
-                                className={`text-4xl font-bold mb-1 ${passed ? "text-green-600" : "text-orange-500"}`}
+                                className={`text-4xl font-bold mb-1 ${
+                                  passed ? "text-green-600" : "text-orange-500"
+                                }`}
                               >
                                 {mqs.score}/{mod.moduleQuiz.length}
                               </div>
                               <p
-                                className={`text-sm font-medium mb-3 ${passed ? "text-green-700" : "text-orange-700"}`}
+                                className={`text-sm font-medium mb-3 ${
+                                  passed ? "text-green-700" : "text-orange-700"
+                                }`}
                               >
                                 {passed
                                   ? "🎉 Great job! You've mastered this module"
@@ -693,18 +995,6 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
                         );
                       })()}
 
-                      {/* Mark Complete / Done indicator */}
-                      {!done && !moduleQuizState[mod.id] && (
-                        <Button
-                          onClick={() => markComplete(mod.id)}
-                          disabled={completing === mod.id}
-                          className="bg-cyan-500 hover:bg-cyan-600 text-sm"
-                        >
-                          {completing === mod.id
-                            ? "Saving..."
-                            : "Mark Module as Complete"}
-                        </Button>
-                      )}
                       {done && (
                         <div className="flex items-center gap-2 text-green-600 text-sm font-medium">
                           <span>✓</span>
@@ -719,39 +1009,7 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
           })}
         </div>
 
-        {/* Video Section */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-base">Video Revision</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {gradeContent.videos.map((v) => (
-                <div
-                  key={v.title}
-                  className="rounded-lg overflow-hidden border border-gray-100"
-                >
-                  <div className="aspect-video bg-gray-900">
-                    <iframe
-                      src={v.url}
-                      className="w-full h-full"
-                      allowFullScreen
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      title={v.title}
-                    />
-                  </div>
-                  <div className="p-3 bg-gray-50">
-                    <p className="text-sm font-medium text-gray-700">
-                      {v.title}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Quiz */}
+        {/* Grade Assessment Quiz */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -896,13 +1154,13 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
                 </div>
                 <div className="text-xs text-gray-500 mt-1">Modules Done</div>
               </div>
-              <div className="bg-cyan-50 rounded-lg p-3 text-center">
-                <div className="text-2xl font-bold text-cyan-600">
-                  {quizResult
-                    ? `${Math.round((quizResult.score / quizResult.totalQuestions) * 100)}%`
-                    : "—"}
+              <div className="bg-amber-50 rounded-lg p-3 text-center">
+                <div className="text-2xl font-bold text-amber-600">
+                  {totalHoursCompleted}h
                 </div>
-                <div className="text-xs text-gray-500 mt-1">Quiz Score</div>
+                <div className="text-xs text-gray-500 mt-1">
+                  Hours Completed
+                </div>
               </div>
             </div>
             <div>
@@ -954,70 +1212,141 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
 
       {/* Certificate Modal */}
       <Dialog open={showCertificate} onOpenChange={setShowCertificate}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>Certificate of Completion</DialogTitle>
           </DialogHeader>
-          <div ref={certRef} className="py-2">
-            <div className="border-4 border-double border-amber-400 rounded-2xl p-8 bg-gradient-to-br from-amber-50 via-white to-cyan-50 text-center">
-              <img
-                src="/assets/uploads/classio_logo_reel_compressed-019d30ca-b132-705d-98da-5b01d58eace4-1.jpeg"
-                alt="Classio"
-                className="h-12 mx-auto mb-4"
-              />
-              <div className="text-xs font-semibold tracking-[0.25em] text-amber-600 uppercase mb-3">
+
+          {/* A4 Landscape Certificate */}
+          <div
+            id="print-certificate"
+            ref={certRef}
+            className="relative w-full bg-gradient-to-br from-amber-50 via-white to-cyan-50 overflow-hidden"
+            style={{ aspectRatio: "297/210" }}
+          >
+            {/* Gold double border */}
+            <div className="absolute inset-3 border-4 border-amber-400 rounded pointer-events-none" />
+            <div className="absolute inset-4 border border-amber-300 rounded pointer-events-none" />
+
+            {/* Corner accents */}
+            {/* Top-left */}
+            <div className="absolute top-6 left-6 w-8 h-8 border-t-2 border-l-2 border-amber-500" />
+            {/* Top-right */}
+            <div className="absolute top-6 right-6 w-8 h-8 border-t-2 border-r-2 border-amber-500" />
+            {/* Bottom-left */}
+            <div className="absolute bottom-6 left-6 w-8 h-8 border-b-2 border-l-2 border-amber-500" />
+            {/* Bottom-right */}
+            <div className="absolute bottom-6 right-6 w-8 h-8 border-b-2 border-r-2 border-amber-500" />
+
+            {/* Certificate Content */}
+            <div className="relative z-10 flex flex-col items-center justify-center h-full px-16 py-10 text-center">
+              {/* Header row: logo + brand */}
+              <div className="flex items-center gap-3 mb-2">
+                <img
+                  src="/assets/uploads/classio_logo_reel_compressed-019d30ca-b132-705d-98da-5b01d58eace4-1.jpeg"
+                  alt="Classio"
+                  className="h-10"
+                />
+                <div className="text-left">
+                  <div className="text-base font-extrabold text-gray-800 leading-tight tracking-wide">
+                    CLASSIO LEARN
+                  </div>
+                  <div className="text-xs text-amber-600 font-medium tracking-widest uppercase">
+                    Learn and Lead
+                  </div>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="w-48 h-px bg-gradient-to-r from-transparent via-amber-400 to-transparent mb-3" />
+
+              {/* Certificate type */}
+              <div className="text-xs font-semibold tracking-[0.3em] text-amber-600 uppercase mb-1">
                 Certificate of Completion
               </div>
-              <div className="text-sm text-gray-500 mb-2">
-                This is to certify that
+
+              <div className="text-xs text-gray-500 mb-1">
+                This is to proudly certify that
               </div>
-              <div className="text-3xl font-bold text-gray-900 mb-2">
+
+              {/* Teacher name */}
+              <div
+                className="text-2xl font-bold text-gray-900 mb-2"
+                style={{ fontFamily: "Georgia, serif" }}
+              >
                 {user.name}
               </div>
-              <div className="text-sm text-gray-500 mb-1">
-                has successfully completed all
+
+              {/* Master Teacher badge */}
+              <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 text-white text-sm font-bold shadow-sm mb-2">
+                ⭐ MASTER TEACHER
               </div>
-              <div className="text-xl font-bold text-cyan-700 mb-1">
-                10 Modules of Grade {assignedGrade} Teacher Training
+
+              <div className="text-xs text-gray-500 mb-0.5">
+                has successfully completed
               </div>
-              <div className="text-sm text-gray-500 mb-4">
-                on the Classio Learn platform
+
+              <div className="text-base font-bold text-cyan-700 mb-0.5">
+                Grade {assignedGrade} Teacher Training Program
               </div>
-              <div className="flex justify-center gap-12 mb-6">
-                <div>
-                  <div className="text-xs text-gray-400">Quiz Score</div>
-                  <div className="font-bold text-green-600">
+              <div className="text-xs text-gray-500 mb-3">
+                comprising all 10 training modules on the Classio Learn platform
+              </div>
+
+              {/* Stats row */}
+              <div className="flex items-center gap-0 border border-amber-200 rounded-lg overflow-hidden mb-3 bg-white/60">
+                <div className="px-5 py-2 text-center">
+                  <div className="text-xl font-bold text-amber-600">
+                    {totalHoursCompleted}
+                  </div>
+                  <div className="text-xs text-gray-500">Total Hours</div>
+                </div>
+                <div className="w-px bg-amber-200 self-stretch" />
+                <div className="px-5 py-2 text-center">
+                  <div className="text-xl font-bold text-cyan-600">
+                    {gradeContent.modules.length}
+                  </div>
+                  <div className="text-xs text-gray-500">Modules</div>
+                </div>
+                <div className="w-px bg-amber-200 self-stretch" />
+                <div className="px-5 py-2 text-center">
+                  <div className="text-xl font-bold text-green-600">
                     {quizResult
-                      ? `${quizResult.score}/${quizResult.totalQuestions}`
+                      ? `${Math.round((quizResult.score / quizResult.totalQuestions) * 100)}%`
                       : "—"}
                   </div>
+                  <div className="text-xs text-gray-500">Assessment</div>
                 </div>
-                <div>
-                  <div className="text-xs text-gray-400">Date</div>
-                  <div className="font-bold text-gray-700">
+                <div className="w-px bg-amber-200 self-stretch" />
+                <div className="px-5 py-2 text-center">
+                  <div className="text-sm font-bold text-gray-600">
                     {completionDate}
                   </div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-400">Grade</div>
-                  <div className="font-bold text-gray-700">
-                    Grade {assignedGrade}
-                  </div>
+                  <div className="text-xs text-gray-500">Date</div>
                 </div>
               </div>
-              <div className="border-t border-amber-200 pt-4">
-                <div className="text-xs text-gray-400">
-                  Classio Learn — Learn and Lead
-                </div>
+
+              {/* Footer bar */}
+              <div className="flex items-center gap-3 text-xs text-gray-400">
+                <span>Grade {assignedGrade} Certified</span>
+                <span className="text-amber-300">|</span>
+                <span>Classio Learn — Learn and Lead</span>
+                <span className="text-amber-300">|</span>
+                <span>Powered by ICP</span>
               </div>
             </div>
           </div>
-          <div className="flex justify-center mt-2">
+
+          {/* Action buttons (hidden on print) */}
+          <div className="flex justify-center gap-3 mt-3 print:hidden">
             <Button
               onClick={handlePrintCertificate}
-              className="bg-cyan-500 hover:bg-cyan-600"
+              className="bg-amber-500 hover:bg-amber-600 text-white"
             >
-              Print / Download Certificate
+              🖨️ Print / Download Certificate
+            </Button>
+            <Button variant="outline" onClick={() => setShowCertificate(false)}>
+              Close
             </Button>
           </div>
         </DialogContent>

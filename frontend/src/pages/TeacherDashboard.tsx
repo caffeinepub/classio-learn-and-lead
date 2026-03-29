@@ -37,6 +37,14 @@ interface UserProgress {
   quizResults: QuizResult[];
 }
 
+interface ModuleEngagement {
+  readingSeconds: number;
+  videoSeen: boolean;
+  allTasksDone: boolean;
+}
+
+const MIN_READ_SECONDS = 180;
+
 export default function TeacherDashboard({ user, onLogout }: Props) {
   const { actor } = useActor();
   const assignedGrade = user.gradeAssigned || 1;
@@ -70,6 +78,103 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
     [key: string]: boolean;
   }>({});
   const certRef = useRef<HTMLDivElement>(null);
+
+  // Monitoring state
+  const [moduleEngagement, setModuleEngagement] = useState<
+    Record<string, ModuleEngagement>
+  >({});
+  const videoRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const observersRef = useRef<Record<string, IntersectionObserver>>({});
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const getEngagement = (moduleId: string): ModuleEngagement =>
+    moduleEngagement[moduleId] ?? {
+      readingSeconds: 0,
+      videoSeen: false,
+      allTasksDone: false,
+    };
+
+  // Reading timer
+  useEffect(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (!activeModule) return;
+    intervalRef.current = setInterval(() => {
+      setModuleEngagement((prev) => {
+        const cur = prev[activeModule] ?? {
+          readingSeconds: 0,
+          videoSeen: false,
+          allTasksDone: false,
+        };
+        return {
+          ...prev,
+          [activeModule]: { ...cur, readingSeconds: cur.readingSeconds + 1 },
+        };
+      });
+    }, 1000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [activeModule]);
+
+  // IntersectionObserver for video
+  useEffect(() => {
+    for (const [mid, obs] of Object.entries(observersRef.current)) {
+      if (mid !== activeModule) {
+        obs.disconnect();
+        delete observersRef.current[mid];
+      }
+    }
+    if (!activeModule) return;
+    const timer = setTimeout(() => {
+      const el = videoRefs.current[activeModule];
+      if (!el || observersRef.current[activeModule]) return;
+      const obs = new IntersectionObserver(
+        (entries) => {
+          if (entries[0]?.isIntersecting) {
+            setModuleEngagement((prev) => {
+              const cur = prev[activeModule] ?? {
+                readingSeconds: 0,
+                videoSeen: false,
+                allTasksDone: false,
+              };
+              if (cur.videoSeen) return prev;
+              return { ...prev, [activeModule]: { ...cur, videoSeen: true } };
+            });
+            obs.disconnect();
+            delete observersRef.current[activeModule];
+          }
+        },
+        { threshold: 0.5 },
+      );
+      obs.observe(el);
+      observersRef.current[activeModule] = obs;
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [activeModule]);
+
+  // Update allTasksDone
+  useEffect(() => {
+    if (!activeModule) return;
+    const gradeContent = GRADE_CONTENT.find((g) => g.grade === assignedGrade)!;
+    const mod = gradeContent.modules.find((m) => m.id === activeModule);
+    if (!mod) return;
+    const done = mod.activity.tasks.every(
+      (_, ti) => activityChecks[`${activeModule}-${ti}`],
+    );
+    setModuleEngagement((prev) => {
+      const cur = prev[activeModule] ?? {
+        readingSeconds: 0,
+        videoSeen: false,
+        allTasksDone: false,
+      };
+      if (cur.allTasksDone === done) return prev;
+      return { ...prev, [activeModule]: { ...cur, allTasksDone: done } };
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activityChecks, activeModule]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -295,12 +400,22 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
     year: "numeric",
   });
 
+  const formatReadTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  };
+
+  // suppress unused warning
+  void completing;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 sticky top-0 z-30 print:hidden">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <img
-            src="/assets/uploads/classio_logo_reel_compressed-019d30ca-b132-705d-98da-5b01d58eace4-1.jpeg"
+            src="/assets/uploads/classio_logo_reel_compressed-019d30ca-b132-705d-98da-5b01d58eaca4-1.jpeg"
             alt="Classio"
             className="h-9"
           />
@@ -440,6 +555,13 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
           {gradeContent.modules.map((mod, idx) => {
             const done = isModuleDone(mod.id);
             const isOpen = activeModule === mod.id;
+            const eng = getEngagement(mod.id);
+            const checkedCount = mod.activity.tasks.filter(
+              (_, ti) => activityChecks[`${mod.id}-${ti}`],
+            ).length;
+            const readDone = eng.readingSeconds >= MIN_READ_SECONDS;
+            const allUnlocked = readDone && eng.videoSeen && eng.allTasksDone;
+
             return (
               <Card
                 key={mod.id}
@@ -525,6 +647,41 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
                         {mod.content}
                       </div>
 
+                      {/* Module Video */}
+                      <div
+                        className="mb-6"
+                        ref={(el) => {
+                          videoRefs.current[mod.id] = el;
+                        }}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-base">🎬</span>
+                          <h3 className="font-semibold text-gray-800 text-sm">
+                            Module Video: {mod.title}
+                          </h3>
+                          {eng.videoSeen && (
+                            <Badge className="bg-green-100 text-green-700 hover:bg-green-100 text-xs ml-1">
+                              ✓ Watched
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-900 aspect-video">
+                          <iframe
+                            src={mod.videoUrl}
+                            className="w-full h-full"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            allowFullScreen
+                            title={mod.title}
+                          />
+                        </div>
+                        {!eng.videoSeen && (
+                          <p className="text-xs text-gray-400 mt-1">
+                            📍 Scroll here and watch the video to unlock the
+                            quiz
+                          </p>
+                        )}
+                      </div>
+
                       {/* Activity Section */}
                       <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-5">
                         <div className="flex items-center gap-2 mb-1">
@@ -567,15 +724,80 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
                           })}
                         </div>
                         <div className="mt-3 text-xs text-amber-700 font-medium">
-                          {
-                            Object.keys(activityChecks).filter(
-                              (k) =>
-                                k.startsWith(`${mod.id}-`) && activityChecks[k],
-                            ).length
-                          }
-                          /{mod.activity.tasks.length} tasks completed
+                          {checkedCount}/{mod.activity.tasks.length} tasks
+                          completed
                         </div>
                       </div>
+
+                      {/* Unlock Progress Checklist */}
+                      {!done && (
+                        <div
+                          className={`rounded-xl border p-4 mb-5 ${
+                            allUnlocked
+                              ? "bg-green-50 border-green-300"
+                              : "bg-slate-50 border-slate-200"
+                          }`}
+                        >
+                          <div className="font-semibold text-sm mb-3 flex items-center gap-2">
+                            {allUnlocked ? (
+                              <span className="text-green-700">
+                                🔓 Quiz Unlocked!
+                              </span>
+                            ) : (
+                              <span className="text-slate-700">
+                                🔒 Complete requirements to unlock quiz
+                              </span>
+                            )}
+                          </div>
+                          <ul className="space-y-2 text-sm">
+                            <li className="flex items-center gap-2">
+                              <span>{readDone ? "✅" : "⏳"}</span>
+                              <span
+                                className={
+                                  readDone
+                                    ? "text-green-700 font-medium"
+                                    : "text-slate-600"
+                                }
+                              >
+                                Read module content (3 min) —{" "}
+                                {readDone
+                                  ? "✓ Done"
+                                  : `${formatReadTime(eng.readingSeconds)} read · ${formatReadTime(MIN_READ_SECONDS - eng.readingSeconds)} remaining`}
+                              </span>
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span>{eng.videoSeen ? "✅" : "⏳"}</span>
+                              <span
+                                className={
+                                  eng.videoSeen
+                                    ? "text-green-700 font-medium"
+                                    : "text-slate-600"
+                                }
+                              >
+                                Watch the module video —{" "}
+                                {eng.videoSeen
+                                  ? "✓ Watched"
+                                  : "Scroll to the video above to unlock"}
+                              </span>
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span>{eng.allTasksDone ? "✅" : "⏳"}</span>
+                              <span
+                                className={
+                                  eng.allTasksDone
+                                    ? "text-green-700 font-medium"
+                                    : "text-slate-600"
+                                }
+                              >
+                                Complete all activity tasks —{" "}
+                                {eng.allTasksDone
+                                  ? "✓ All done"
+                                  : `${checkedCount}/${mod.activity.tasks.length} tasks completed`}
+                              </span>
+                            </li>
+                          </ul>
+                        </div>
+                      )}
 
                       {/* My Learning Test */}
                       {(() => {
@@ -590,16 +812,35 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
                                 Test your understanding of this module with 5
                                 quick questions.
                               </p>
-                              <button
-                                type="button"
-                                data-ocid="module.primary_button"
-                                onClick={() =>
-                                  initModuleQuiz(mod.id, mod.moduleQuiz.length)
-                                }
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
-                              >
-                                Start Learning Test
-                              </button>
+                              {!done && !allUnlocked ? (
+                                <div>
+                                  <button
+                                    type="button"
+                                    data-ocid="module.primary_button"
+                                    disabled
+                                    className="bg-gray-300 text-gray-500 cursor-not-allowed px-5 py-2 rounded-lg text-sm font-medium"
+                                  >
+                                    🔒 Start Learning Test
+                                  </button>
+                                  <p className="text-xs text-gray-400 mt-2">
+                                    Complete the requirements above to unlock
+                                  </p>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  data-ocid="module.primary_button"
+                                  onClick={() =>
+                                    initModuleQuiz(
+                                      mod.id,
+                                      mod.moduleQuiz.length,
+                                    )
+                                  }
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+                                >
+                                  Start Learning Test
+                                </button>
+                              )}
                             </div>
                           );
                         }
@@ -610,18 +851,30 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
                           const passed = pct >= 70;
                           return (
                             <div
-                              className={`border rounded-xl p-5 mb-5 ${passed ? "bg-green-50 border-green-200" : "bg-orange-50 border-orange-200"}`}
+                              className={`border rounded-xl p-5 mb-5 ${
+                                passed
+                                  ? "bg-green-50 border-green-200"
+                                  : "bg-orange-50 border-orange-200"
+                              }`}
                             >
                               <h3 className="font-bold text-base mb-2">
                                 📝 My Learning Test — Results
                               </h3>
                               <div
-                                className={`text-4xl font-bold mb-1 ${passed ? "text-green-600" : "text-orange-500"}`}
+                                className={`text-4xl font-bold mb-1 ${
+                                  passed
+                                    ? "text-green-600"
+                                    : "text-orange-500"
+                                }`}
                               >
                                 {mqs.score}/{mod.moduleQuiz.length}
                               </div>
                               <p
-                                className={`text-sm font-medium mb-3 ${passed ? "text-green-700" : "text-orange-700"}`}
+                                className={`text-sm font-medium mb-3 ${
+                                  passed
+                                    ? "text-green-700"
+                                    : "text-orange-700"
+                                }`}
                               >
                                 {passed
                                   ? "🎉 Great job! You've mastered this module"
@@ -693,18 +946,6 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
                         );
                       })()}
 
-                      {/* Mark Complete / Done indicator */}
-                      {!done && !moduleQuizState[mod.id] && (
-                        <Button
-                          onClick={() => markComplete(mod.id)}
-                          disabled={completing === mod.id}
-                          className="bg-cyan-500 hover:bg-cyan-600 text-sm"
-                        >
-                          {completing === mod.id
-                            ? "Saving..."
-                            : "Mark Module as Complete"}
-                        </Button>
-                      )}
                       {done && (
                         <div className="flex items-center gap-2 text-green-600 text-sm font-medium">
                           <span>✓</span>
@@ -719,7 +960,7 @@ export default function TeacherDashboard({ user, onLogout }: Props) {
           })}
         </div>
 
-        {/* Quiz */}
+        {/* Grade Assessment Quiz */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
